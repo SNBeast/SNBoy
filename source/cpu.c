@@ -1,7 +1,18 @@
 #include "cpu.h"
-#include "memory.h"
+#include "motherboard.h"
 
-struct CPU_State cpu;
+union InterruptFlags interrupt_flags = {.interruptFlags = 0xe1};
+union InterruptFlags interrupt_enable = {0};
+
+struct CPU_State cpu = {
+    .ime = 0,
+    .af = 0x01b0,
+    .bc = 0x0013,
+    .de = 0x00d8,
+    .hl = 0x014d,
+    .sp = 0xfffe,
+    .pc = 0x0100
+};
 
 void add8 (u8 value) {
     u16 old_a = cpu.a;
@@ -55,10 +66,12 @@ void or (u8 value) {
     cpu.f = cpu.a == 0 ? 0b1000'0000 : 0b0000'0000;
 }
 void cp (u8 value) {
-    cpu.zero = cpu.a - value == 0;
+    s16 aValue = cpu.a;
+
+    cpu.zero = aValue - value == 0;
     cpu.subtract = 1;
-    cpu.half_carry = ((cpu.a & 0x0f) - (value & 0x0f) - cpu.carry) < 0;
-    cpu.carry = (cpu.a - value - cpu.carry) < 0;
+    cpu.half_carry = ((aValue & 0x0f) - (value & 0x0f)) < 0;
+    cpu.carry = (aValue - value) < 0;
 }
 
 void rlc (u8* reg) {
@@ -84,12 +97,16 @@ void rr (u8* reg) {
     cpu.zero = !*reg;
 }
 void sla (u8* reg) {
-    cpu.f = (!*reg << 7) | (!!(*reg & 0x80) << 4);
+    cpu.f = !!(*reg & 0x80) << 4;
     *reg <<= 1;
+
+    cpu.zero = !*reg;
 }
 void sra (u8* reg) {
-    cpu.f = (!*reg << 7) | ((*reg & 0x01) << 4);
+    cpu.f = (*reg & 0x01) << 4;
     *reg = (*reg & 0x80) | (*reg >> 1);
+
+    cpu.zero = !*reg;
 }
 void swap (u8* reg) {
     *reg = (*reg << 4) | (*reg >> 4);
@@ -97,8 +114,10 @@ void swap (u8* reg) {
     cpu.f = *reg == 0 ? 0b1000'0000 : 0b0000'0000;
 }
 void srl (u8* reg) {
-    cpu.f = (!*reg << 7) | ((*reg & 0x01) << 4);
+    cpu.f =(*reg & 0x01) << 4;
     *reg >>= 1;
+
+    cpu.zero = !*reg;
 }
 
 void bit (u8 which, u8 value) {
@@ -115,7 +134,7 @@ void set (u8 which, u8* reg) {
 }
 
 void push (u16 value) {
-    write16(cpu.sp - 1, value);
+    write16_reverse(cpu.sp - 2, value);
     cpu.sp -= 2;
 }
 u16 pop (void) {
@@ -129,6 +148,7 @@ void jr (s8 offset, bool condition) {
     }
 }
 void jp (u16 place, bool condition) {
+    cpu.pc += 2;
     if (condition) {
         cpu.pc = place;
     }
@@ -139,6 +159,10 @@ void call (u16 place, bool condition) {
         push(cpu.pc);
         cpu.pc = place;
     }
+}
+void rst (u16 place) {
+    push(cpu.pc);
+    cpu.pc = place;
 }
 void ret (bool condition, bool i) {
     if (condition) {
@@ -153,7 +177,6 @@ void add16 (u16 value) {
     u32 old_hl = cpu.hl;
     cpu.hl += value;
 
-    cpu.zero = 0;
     cpu.subtract = 0;
     cpu.half_carry = ((old_hl & 0x0fff) + (value & 0x0fff)) > 0x0fff;
     cpu.carry = (old_hl + value) > 0xffff;
@@ -213,7 +236,7 @@ void daa(void) {
     u16 value = cpu.a;
     if (cpu.subtract) {
         if (cpu.half_carry) {
-            value -= 0x06;
+            value = (value - 0x06) & 0xff;
         }
         if (cpu.carry) {
             value -= 0x60;
@@ -230,8 +253,8 @@ void daa(void) {
     cpu.a = value & 0xff;
 
     cpu.zero = !cpu.a;
-    cpu.subtract = 1;
-    cpu.carry = value & 0x100;
+    cpu.half_carry = 0;
+    cpu.carry |= value & 0x100;
 }
 void cpl(void) {
     cpu.a ^= 0xff;
@@ -246,26 +269,26 @@ typedef bool (*Condition) (void);
 typedef void (*Function8) (u8);
 typedef void (*FunctionReg) (u8*);
 typedef void (*FunctionHL) (void);
-bool notCarry (void) {
-    return !cpu.carry;
-}
-bool carry (void) {
-    return cpu.carry;
-}
 bool notZero (void) {
     return !cpu.zero;
 }
 bool zero (void) {
     return cpu.zero;
 }
+bool notCarry (void) {
+    return !cpu.carry;
+}
+bool carry (void) {
+    return cpu.carry;
+}
 u8* r[] = {&cpu.b, &cpu.c, &cpu.d, &cpu.e, &cpu.h, &cpu.l, NULL, &cpu.a}; // [hl] is left as NULL because that needs to be handled differently, so we should crash if unhandled
 u16* rp[] = {&cpu.bc, &cpu.de, &cpu.hl, &cpu.sp};
 u16* rp2[] = {&cpu.bc, &cpu.de, &cpu.hl, &cpu.af};
-Condition cc[] = {notCarry, carry, notZero, zero};
+Condition cc[] = {notZero, zero, notCarry, carry};
 Function8 alu[] = {add8, adc, sub, sbc, and, xor, or, cp};
 FunctionReg rot[] = {rlc, rrc, rl, rr, sla, sra, swap, srl};
 
-void step (void) {
+void cpu_step (void) {
     u8 instruction = read8(cpu.pc++);
 
     if (instruction == 0xCB) {
@@ -447,9 +470,13 @@ void step (void) {
                                 cpl();
                                 break;
                             case 6:
+                                cpu.subtract = 0;
+                                cpu.half_carry = 0;
                                 cpu.carry = 1;
                                 break;
                             case 7:
+                                cpu.subtract = 0;
+                                cpu.half_carry = 0;
                                 cpu.carry ^= 1;
                                 break;
                         }
@@ -529,26 +556,27 @@ void step (void) {
                         }
                         break;
                     case 2:
-                        if (!q) {
-                            jp(read16(cpu.pc), cc[y]());
-                        }
-                        else {
-                            switch (y) {
-                                case 4:
-                                    write8(0xff00 | cpu.c, cpu.a);
-                                    break;
-                                case 5:
-                                    write8(read16(cpu.pc), cpu.a);
-                                    cpu.pc += 2;
-                                    break;
-                                case 6:
-                                    cpu.a = read8(0xff00 | cpu.c);
-                                    break;
-                                case 7:
-                                    cpu.a = read8(read16(cpu.pc));
-                                    cpu.pc += 2;
-                                    break;
-                            }
+                        switch (y) {
+                            case 0:
+                            case 1:
+                            case 2:
+                            case 3:
+                                jp(read16(cpu.pc), cc[y]());
+                                break;
+                            case 4:
+                                write8(0xff00 | cpu.c, cpu.a);
+                                break;
+                            case 5:
+                                write8(read16(cpu.pc), cpu.a);
+                                cpu.pc += 2;
+                                break;
+                            case 6:
+                                cpu.a = read8(0xff00 | cpu.c);
+                                break;
+                            case 7:
+                                cpu.a = read8(read16(cpu.pc));
+                                cpu.pc += 2;
+                                break;
                         }
                         break;
                     case 3:
@@ -603,7 +631,7 @@ void step (void) {
                         alu[y](read8(cpu.pc++));
                         break;
                     case 7:
-                        call(y * 8, 1);
+                        rst(y * 8);
                         break;
                 }
                 break;

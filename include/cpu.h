@@ -46,6 +46,27 @@ struct CPU_State {
     bool ime;
 };
 
+union InterruptFlags {
+    u8 interruptFlags;
+    struct {
+        bool vblank:1;
+        bool stat:1;
+        bool timer:1;
+        bool serial:1;
+        bool joypad:1;
+        u8 alwaysOn:3;
+    };
+};
+
+static void cpu_assertions (void) __attribute__ ((unused));
+static void cpu_assertions (void) {
+    static_assert(sizeof(union InterruptFlags) == sizeof(u8));
+}
+
 extern struct CPU_State cpu;
+extern union InterruptFlags interrupt_flags;
+extern union InterruptFlags interrupt_enable;
+
+extern void cpu_step(void);
 
 #endif // CPU_H

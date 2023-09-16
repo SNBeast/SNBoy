@@ -43,8 +43,8 @@ union Test_Bitfields {
     };
 };
 
-static void assertions (void) __attribute__ ((unused));
-static void assertions (void) {
+static void common_assertions (void) __attribute__ ((unused));
+static void common_assertions (void) {
     static_assert(sizeof(union Test_Alignment) == sizeof(u16));
     static_assert(sizeof(union Test_Bitfields) == sizeof(u8));
 }
