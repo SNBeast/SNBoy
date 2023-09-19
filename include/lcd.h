@@ -40,6 +40,22 @@ union Palette_Union {
     };
 };
 
+struct OAM_Entry {
+    u8 yPosition;
+    u8 xPosition;
+    u8 tileIndex;
+    union {
+        u8 attributes;
+        struct {
+            u8 unused:4;
+            bool palette:1;
+            bool xFlip:1;
+            bool yFlip:1;
+            bool bgWindowPriority:1;
+        };
+    };
+};
+
 extern union LCDC_Union lcdc_union;
 extern union STAT_Union stat_union;
 
@@ -54,17 +70,25 @@ extern u8 WY;
 extern u8 LY;
 extern u8 LYC;
 
-extern u8 readVRAM(u16 address);
-extern void writeVRAM(u16 address, u8 value);
+extern u8 frame[144][160];
 
-extern u8 readOAM(u16 address);
-extern void writeOAM(u16 address, u8 value);
+extern u8 readVRAM(u16 address, bool cpu);
+extern void writeVRAM(u16 address, u8 value, bool cpu);
+
+extern u8 readOAM(u16 address, bool cpu);
+extern void writeOAM(u16 address, u8 value, bool cpu);
+
+extern void lcd_step(void);
+
+extern void fetch_pixel_data(u8* pixel_buffer, bool higher_area, u8 index, u8 y);
+extern u8 bgTileColors[160];
 
 static void lcd_assertions (void) __attribute__ ((unused));
 static void lcd_assertions (void) {
     static_assert(sizeof(union LCDC_Union) == sizeof(u8));
     static_assert(sizeof(union STAT_Union) == sizeof(u8));
     static_assert(sizeof(union Palette_Union) == sizeof(u8));
+    static_assert(sizeof(struct OAM_Entry) == sizeof(u32));
 }
 
 #endif // LCD_H

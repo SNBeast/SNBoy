@@ -1,6 +1,9 @@
 #include "cart.h"
 #include "cpu.h"
+#include "lcd.h"
 #include "motherboard.h"
+#include "serial.h"
+#include "timers.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,12 +36,18 @@ int main (int argc, char** argv) {
     fread(rom, 1, romSize, romFile);
     fclose(romFile);
 
-    for (int i = 0; i < 0x00'80'00'00; i++) {
-        printf(
-            "A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n",
-            cpu.a, cpu.f, cpu.b, cpu.c, cpu.d, cpu.e, cpu.h, cpu.l, cpu.sp, cpu.pc, read8(cpu.pc), read8(cpu.pc + 1), read8(cpu.pc + 2), read8(cpu.pc + 3)
-        );
+    for (int i = 0; i < 0x00'10'00'00; i++) {
+        tick_timers();
+        serial_tick();
+        lcd_step();
         cpu_step();
+    }
+
+    for (int i = 0; i < 144; i++) {
+        for (int j = 0; j < 160; j++) {
+            printf("%d", frame[i][j]);
+        }
+        puts("");
     }
 
     return 0;

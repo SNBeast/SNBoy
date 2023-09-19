@@ -2,20 +2,25 @@
 #include "cart.h"
 #include "cpu.h"
 #include "lcd.h"
+#include "serial.h"
+#include "timers.h"
+
+#include <string.h>
 
 u8 wram[0x2000] = {0};
 u8 hram[0x7f] = {0};
 
 bool wramAccessible = 1;
+bool stopMode = 0;
 
-u8 read8 (u16 address) {
+u8 read8 (u16 address, bool cpu) {
     // Cart ROM
     if (address < 0x8000) {
         return readCart(address);
     }
     // VRAM
     else if (address < 0xa000) {
-        return readVRAM(address - 0x8000);
+        return readVRAM(address - 0x8000, cpu);
     }
     // Cart RAM
     else if (address < 0xc000) {
@@ -23,7 +28,7 @@ u8 read8 (u16 address) {
     }
     // WRAM
     else if (address < 0xe000) {
-        if (wramAccessible) {
+        if (wramAccessible || !cpu) {
             return wram[address - 0xc000];
         }
         else {
@@ -32,7 +37,7 @@ u8 read8 (u16 address) {
     }
     // Echo WRAM (Nintendo-forbidden)
     else if (address < 0xfe00) {
-        if (wramAccessible) {
+        if (wramAccessible || !cpu) {
             return wram[address - 0xe000];
         }
         else {
@@ -41,7 +46,7 @@ u8 read8 (u16 address) {
     }
     // OAM
     else if (address < 0xff00) {
-        return readOAM(address - 0xfe00);
+        return readOAM(address - 0xfe00, cpu);
     }
     // device control
     else if (address < 0xff80 || address == 0xffff) {
@@ -50,23 +55,17 @@ u8 read8 (u16 address) {
                 // TODO: Joypad
                 return 0xcf;
             case 0xff01:
-                // TODO: Serial
-                return 0x00;
+                return sb;
             case 0xff02:
-                // TODO: Serial
-                return 0x7e;
+                return sc_union.sc;
             case 0xff04:
-                // TODO: Timers
-                return 0xab;
+                return DIV;
             case 0xff05:
-                // TODO: Timers
-                return 0x00;
+                return TIMA;
             case 0xff06:
-                // TODO: Timers
-                return 0x00;
+                return TMA;
             case 0xff07:
-                // TODO: Timers
-                return 0xf8;
+                return tac_union.tac;
             case 0xff0f:
                 return interrupt_flags.interruptFlags;
             case 0xff10:
@@ -145,7 +144,6 @@ u8 read8 (u16 address) {
             case 0xff45:
                 return LYC;
             case 0xff46:
-                // TODO: OAM DMA
                 return 0xff;
             case 0xff47:
                 return BGP.palette;
@@ -168,14 +166,14 @@ u8 read8 (u16 address) {
     }
 }
 
-void write8 (u16 address, u8 value) {
+void write8 (u16 address, u8 value, bool cpu) {
     // Cart ROM
     if (address < 0x8000) {
         writeCart(address, value);
     }
     // VRAM
     else if (address < 0xa000) {
-        writeVRAM(address - 0x8000, value);
+        writeVRAM(address - 0x8000, value, cpu);
     }
     // Cart RAM
     else if (address < 0xc000) {
@@ -183,19 +181,19 @@ void write8 (u16 address, u8 value) {
     }
     // WRAM
     else if (address < 0xe000) {
-        if (wramAccessible) {
+        if (wramAccessible || !cpu) {
             wram[address - 0xc000] = value;
         }
     }
     // Echo WRAM (Nintendo-forbidden)
     else if (address < 0xfe00) {
-        if (wramAccessible) {
+        if (wramAccessible || !cpu) {
             wram[address - 0xe000] = value;
         }
     }
     // OAM
     else if (address < 0xff00) {
-        writeOAM(address - 0xfe00, value);
+        writeOAM(address - 0xfe00, value, cpu);
     }
     // device control
     else if (address < 0xff80 || address == 0xffff) {
@@ -204,25 +202,29 @@ void write8 (u16 address, u8 value) {
                 // TODO: Joypad
                 break;
             case 0xff01:
-                // TODO: Serial
+                sb = value;
                 break;
             case 0xff02:
-                // TODO: Serial
+                sc_union.sc = 0x7e | value;
+                if (!sc_union.shiftClock || !sc_union.transferActive) {
+                    serial_bit_counter = 0;
+                }
                 break;
             case 0xff04:
-                // TODO: Timers
+                DIV = 0;
                 break;
             case 0xff05:
-                // TODO: Timers
+                TIMA = value;
                 break;
             case 0xff06:
-                // TODO: Timers
+                TMA = value;
                 break;
             case 0xff07:
-                // TODO: Timers
+                tac_union.tac = 0xf8 | value;
+                tima_counter = 0;
                 break;
             case 0xff0f:
-                interrupt_flags.interruptFlags = 0xe0 | value;
+                interrupt_flags.interruptFlags = value;
                 break;
             case 0xff10:
                 // TODO: Sound
@@ -306,7 +308,11 @@ void write8 (u16 address, u8 value) {
                 LYC = value;
                 break;
             case 0xff46:
-                // TODO: OAM DMA
+                if (value < 0xe0) {
+                    for (int i = 0; i < 0xa0; i++) {
+                        writeOAM(i, read8((value << 8) | i, 0), 0);
+                    }
+                }
                 break;
             case 0xff47:
                 BGP.palette = value;
@@ -334,17 +340,17 @@ void write8 (u16 address, u8 value) {
     }
 }
 
-u16 read16 (u16 address) {
-    u16 retVal = read8(address);
-    return ((u16)read8(address + 1) << 8) | retVal;
+u16 read16 (u16 address, bool cpu) {
+    u16 retVal = read8(address, cpu);
+    return ((u16)read8(address + 1, cpu) << 8) | retVal;
 }
 
-void write16 (u16 address, u16 value) {
-    write8(address, value & 0xff);
-    write8(address + 1, value >> 8);
+void write16 (u16 address, u16 value, bool cpu) {
+    write8(address, value & 0xff, cpu);
+    write8(address + 1, value >> 8, cpu);
 }
 
-void write16_reverse (u16 address, u16 value) {
-    write8(address + 1, value >> 8);
-    write8(address, value & 0xff);
+void write16_reverse (u16 address, u16 value, bool cpu) {
+    write8(address + 1, value >> 8, cpu);
+    write8(address, value & 0xff, cpu);
 }

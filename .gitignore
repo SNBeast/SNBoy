@@ -1,6 +1,10 @@
 # IDE config
 .vscode
 
+# GB files
+*.gb
+*.sav
+
 # Prerequisites
 *.d
 
