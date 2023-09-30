@@ -3,7 +3,9 @@
 
 # GB files
 *.gb
+*.gbc
 *.sav
+*.rtc
 
 # Prerequisites
 *.d

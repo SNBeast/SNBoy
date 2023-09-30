@@ -83,7 +83,7 @@ void fetch_pixel_data (u8* pixel_buffer, bool higher_area, u8 index, u8 y) {
     }
 }
 
-void fetch_sprite_pixels (struct OAM_Entry sprite) {
+void fetch_sprite_pixels (struct OAM_Entry sprite, u8 discard) {
     u8 yLine = LY + 16 - sprite.yPosition;
     if (sprite.yFlip) {
         yLine = (lcdc_union.objSize ? 15 : 7) - yLine;
@@ -102,11 +102,18 @@ void fetch_sprite_pixels (struct OAM_Entry sprite) {
         fetch_pixel_data(pixel_data, 0, sprite.tileIndex, yLine);
     }
 
-    for (int i = 0; i < 8; i++) {
-        u8 index = (objectTileColorsPointer + i) & 7;
-        if (objectTileColors[index] == 4 && pixel_data[i] != 4) {
+    u8 index = objectTileColorsPointer;
+    for (int i = discard; i < 8; i++) {
+        int modifiedI;
+        if (sprite.xFlip) {
+            modifiedI = 7 - i;
+        }
+        else {
+            modifiedI = i;
+        }
+        if (objectTileColors[index] == 4 && pixel_data[modifiedI] != 4) {
             if (sprite.palette) {
-                switch (pixel_data[i]) {
+                switch (pixel_data[modifiedI]) {
                     case 1:
                         objectTileColors[index] = OBP2.color1;
                         break;
@@ -119,7 +126,7 @@ void fetch_sprite_pixels (struct OAM_Entry sprite) {
                 }
             }
             else {
-                switch (pixel_data[i]) {
+                switch (pixel_data[modifiedI]) {
                     case 1:
                         objectTileColors[index] = OBP1.color1;
                         break;
@@ -133,9 +140,13 @@ void fetch_sprite_pixels (struct OAM_Entry sprite) {
             }
         }
         objectTilePriorities[index] = sprite.bgWindowPriority;
+        
+        index = (index + 1) & 7;
     }
 
-    remainingSpritePixels = 8;
+    if ((8 - discard) > remainingSpritePixels) {
+        remainingSpritePixels = 8 - discard;
+    }
 }
 
 void lcd_step (void) {
@@ -146,6 +157,7 @@ void lcd_step (void) {
                     for (int i = 0; i < remainingSpritePixels; i++) {
                         objectTileColors[(objectTileColorsPointer + i) & 0x7] = 4;
                     }
+                    remainingSpritePixels = 0;
                     line_object_counter = 0;
                 }
                 if (line_object_counter < 10) {
@@ -168,10 +180,10 @@ void lcd_step (void) {
 
                     u8 pixel_data[256] = {0};
                     u16 background_base = lcdc_union.bgTileMapArea ? 0x1c00 : 0x1800;
-                    u16 window_base = lcdc_union.bgTileMapArea ? 0x1c00 : 0x1800;
+                    u16 window_base = lcdc_union.windowTileMapArea ? 0x1c00 : 0x1800;
 
                     for (int i = 0; i < 32; i++) {
-                        fetch_pixel_data(&pixel_data[i * 8], !lcdc_union.bgWindowTileDataArea, vram[(u16)((LY + SCY) / 8) * 0x20 + i + background_base], (LY + SCY) & 7);
+                        fetch_pixel_data(&pixel_data[i * 8], !lcdc_union.bgWindowTileDataArea, vram[(u16)(((LY + SCY) & 0xff) / 8) * 0x20 + i + background_base], (LY + SCY) & 7);
                     }
                     if (SCX < 96) {
                         memcpy(bgTileColors, pixel_data + SCX, 160);
@@ -183,6 +195,14 @@ void lcd_step (void) {
                     if (LY >= WY) {
                         for (int i = 0; i < 21; i++) {
                             fetch_pixel_data(&windowTileColors[i * 8], !lcdc_union.bgWindowTileDataArea, vram[(u16)((LY - WY) / 8) * 0x20 + i + window_base], (LY - WY) & 7);
+                        }
+                    }
+                    for (int i = 1; i < 8; i++) {
+                        for (int j = 0; j < line_object_counter; j++) {
+                            struct OAM_Entry sprite = ((struct OAM_Entry*)oam)[line_objects[j]];
+                            if (sprite.xPosition == i) {
+                                fetch_sprite_pixels(sprite, 8 - i);
+                            }
                         }
                     }
                 }
@@ -198,7 +218,7 @@ void lcd_step (void) {
                         for (int j = 0; j < line_object_counter; j++) {
                             struct OAM_Entry sprite = ((struct OAM_Entry*)oam)[line_objects[j]];
                             if (sprite.xPosition == (line_timer - 20) * 4 + i + 8) {
-                                fetch_sprite_pixels(sprite);
+                                fetch_sprite_pixels(sprite, 0);
                             }
                         }
                         u8 tileColorUsed;

@@ -13,6 +13,15 @@
 bool romLoaded = 0;
 u8 previousButtons = 0xf;
 
+FILE* savFile = NULL;
+
+// something something Sega v. Accolade, I am not a lawyer and this is not legal advice
+const u8 NintendoLogo[] = {
+    0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D,
+    0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99,
+    0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E
+};
+
 void reset (void) {
     cpu.ime = 0;
     cpu.af = 0x01b0;
@@ -65,32 +74,155 @@ void reset (void) {
     tima_counter = 0;
 
     requestFrameDraw = 0;
+
+    romBank0 = 0;
+    romBank1 = 1;
+    ramBank0 = 0;
+    ramBank1 = 1;
+
+    sramEnabled = 0;
+    mbcBool = 0;
+    mbcVar1 = 0;
+    mbcVar2 = 0;
+}
+
+bool closeSave (void) {
+    if (fseek(savFile, 0, SEEK_SET)) {
+        perror("Save file stream could not be reset.");
+        return 0;
+    }
+    if (fwrite(sram, 1, savSize, savFile) != savSize) {
+        perror("Could not write all of the save file's bytes.");
+        return 0;
+    }
+    fclose(savFile);
+    free(sram);
+    return 1;
 }
 
 // return value: true if success
 bool loadROM (const char* file) {
-    FILE* romFile = fopen(file, "r");
+    if (sram) {
+        if (!closeSave()) {
+            return 0;
+        }
+    }
+    if (rom) {
+        free(rom);
+    }
 
+    FILE* romFile = fopen(file, "rb");
     if (!romFile) {
-        puts("ROM file cannot be opened.");
+        perror("ROM file cannot be opened.");
         return 0;
     }
     if (fseek(romFile, 0, SEEK_END)) {
-        puts("ROM filesize cannot be determined.");
+        perror("ROM filesize cannot be determined.");
         return 0;
     }
-    long romSize = ftell(romFile);
+    romSize = ftell(romFile);
     rom = malloc(romSize);
     if (!rom) {
-        printf("%ld bytes could not be allocated for the rom.\n", romSize);
+        fprintf(stderr, "%zu bytes could not be allocated for the ROM.\n", romSize);
         return 0;
     }
     if (fseek(romFile, 0, SEEK_SET)) {
-        puts("ROM file stream could not be reset.");
+        perror("ROM file stream could not be reset.");
         return 0;
     }
-    fread(rom, 1, romSize, romFile);
+    if (fread(rom, 1, romSize, romFile) != romSize) {
+        perror("Could not read all of the ROM file's bytes");
+        return 0;
+    }
     fclose(romFile);
+    mbc = rom[0x147];
+    if ((romSize > 0x40000) && (mbc == 1 || mbc == 2 || mbc == 3)) {
+        mbc1m = !memcmp(rom + 0x40104, NintendoLogo, sizeof(NintendoLogo));
+    }
+
+    size_t sizeCopy = romSize;
+    for (romMagnitude = 0; sizeCopy != 0; romMagnitude++) {
+        sizeCopy >>= 1;
+    }
+    if (romSize & (romSize - 1)) {
+        romMagnitude++;
+    }
+
+    char* savPath;
+    if (!memcmp(file + strlen(file) - 3, ".gb", 3)) {
+        savPath = malloc(strlen(file) + 2);
+        memcpy(savPath, file, strlen(file) - 3);
+        memcpy(savPath + strlen(file) - 3, ".sav", 5);
+    }
+    else if (!memcmp(file + strlen(file) - 4, ".gbc", 4)) {
+        savPath = malloc(strlen(file) + 1);
+        memcpy(savPath, file, strlen(file) - 4);
+        memcpy(savPath + strlen(file) - 4, ".sav", 5);
+    }
+    else {
+        savPath = malloc(strlen(file) + 5);
+        memcpy(savPath, file, strlen(file));
+        memcpy(savPath + strlen(file), ".sav", 5);
+    }
+
+    savFile = fopen(savPath, "rb+");
+    if (!savFile) {
+        switch (rom[0x149]) {
+            case 0:
+                savSize = 0;
+                break;
+            case 2:
+                savSize = 0x2000;
+                break;
+            case 3:
+                savSize = 0x8000;
+                break;
+            case 4:
+                savSize = 0x20000;
+                break;
+            case 5:
+                savSize = 0x10000;
+                break;
+        }
+        if (savSize) {
+            savFile = fopen(savPath, "wb+");
+            if (!savFile) {
+                perror("Save file cannot be opened");
+                return 0;
+            }
+            sram = malloc(savSize);
+        }
+    }
+    else {
+        if (fseek(savFile, 0, SEEK_END)) {
+            perror("Save filesize cannot be determined.");
+            return 0;
+        }
+        savSize = ftell(savFile);
+        sram = malloc(savSize);
+        if (!sram) {
+            fprintf(stderr, "%zu bytes could not be allocated for the save.\n", savSize);
+            return 0;
+        }
+        if (fseek(savFile, 0, SEEK_SET)) {
+            perror("ROM file stream could not be reset.");
+            return 0;
+        }
+        if (fread(sram, 1, savSize, savFile) != savSize) {
+            perror("Could not read all of the save file's bytes");
+            return 0;
+        }
+    }
+
+    sizeCopy = savSize;
+    for (savMagnitude = 0; sizeCopy != 0; savMagnitude++) {
+        sizeCopy >>= 1;
+    }
+    if (savSize & (savSize - 1)) {
+        savMagnitude++;
+    }
+
+    free(savPath);
 
     reset();
     romLoaded = 1;
@@ -103,6 +235,9 @@ bool eventHandle (void) {
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
             case SDL_QUIT:
+                if (sram) {
+                    closeSave();
+                }
                 return 1;
             case SDL_DROPFILE:
                 if (!loadROM(event.drop.file)) {
@@ -169,6 +304,9 @@ int main (int argc, char** argv) {
         SDL_RenderPresent(renderer);
         if (eventHandle()) {
             return 0;
+        }
+        if (keys[SDL_SCANCODE_RSHIFT]) {
+            SDL_Delay(500);
         }
     }
 
