@@ -1,23 +1,15 @@
 #include "cpu.h"
 #include "motherboard.h"
 
-union InterruptFlags interrupt_flags = {.interruptFlags = 0xe1};
-union InterruptFlags interrupt_enable = {0};
+union InterruptFlags interrupt_flags = {};
+union InterruptFlags interrupt_enable = {};
 
-struct CPU_State cpu = {
-    .ime = 0,
-    .af = 0x01b0,
-    .bc = 0x0013,
-    .de = 0x00d8,
-    .hl = 0x014d,
-    .sp = 0xfffe,
-    .pc = 0x0100
-};
+struct CPU_State cpu = {};
 
-bool haltMode = 0;
+bool haltMode;
 
-bool eiJustHappened = 0;
-bool toggleIME = 0;
+bool eiJustHappened;
+bool toggleIME;
 
 void add8 (u8 value) {
     u16 old_a = cpu.a;
@@ -140,6 +132,7 @@ void set (u8 which, u8* reg) {
 
 void push (u16 value) {
     write16_reverse(cpu.sp - 2, value, 1);
+    tickFromCPU();
     cpu.sp -= 2;
 }
 u16 pop (void) {
@@ -149,12 +142,14 @@ u16 pop (void) {
 }
 void jr (s8 offset, bool condition) {
     if (condition) {
+        tickFromCPU();
         cpu.pc += offset;
     }
 }
 void jp (u16 place, bool condition) {
     cpu.pc += 2;
     if (condition) {
+        tickFromCPU();
         cpu.pc = place;
     }
 }
@@ -171,6 +166,7 @@ void rst (u16 place) {
 }
 void ret (bool condition, bool i) {
     if (condition) {
+        tickFromCPU();
         cpu.pc = pop();
         if (i) {
             cpu.ime = 1;
@@ -182,13 +178,17 @@ void add16 (u16 value) {
     u32 old_hl = cpu.hl;
     cpu.hl += value;
 
+    tickFromCPU();
+
     cpu.subtract = 0;
     cpu.half_carry = ((old_hl & 0x0fff) + (value & 0x0fff)) > 0x0fff;
     cpu.carry = (old_hl + value) > 0xffff;
 }
 void addSP (s8 offset) {
     u16 old_sp = cpu.sp;
+    tickFromCPU();
     cpu.sp += offset;
+    tickFromCPU();
 
     cpu.zero = 0;
     cpu.subtract = 0;
@@ -197,6 +197,7 @@ void addSP (s8 offset) {
 }
 void ldHLSP (s8 offset) {
     cpu.hl = cpu.sp + offset;
+    tickFromCPU();
 
     cpu.zero = 0;
     cpu.subtract = 0;
@@ -295,6 +296,7 @@ FunctionReg rot[] = {rlc, rrc, rl, rr, sla, sra, swap, srl};
 
 void cpu_step (void) {
     if (stopMode) {
+        tickFromCPU();
         return;
     }
 
@@ -424,9 +426,11 @@ void cpu_step (void) {
                         case 3:
                             // 16-bit inc and dec use the logic for sp and pc, so they don't touch flags
                             if (q) {
+                                tickFromCPU();
                                 (*rp[p])--;
                             }
                             else {
+                                tickFromCPU();
                                 (*rp[p])++;
                             }
                             break;
@@ -524,6 +528,7 @@ void cpu_step (void) {
                                 case 1:
                                 case 2:
                                 case 3:
+                                    tickFromCPU();
                                     ret(cc[y](), 0);
                                     break;
                                 case 4:
@@ -560,6 +565,7 @@ void cpu_step (void) {
                                         break;
                                     case 3:
                                         cpu.sp = cpu.hl;
+                                        tickFromCPU();
                                         break;
                                 }
                             }
@@ -656,6 +662,9 @@ void cpu_step (void) {
             toggleIME = 1;
             eiJustHappened = 0;
         }
+    }
+    else {
+        tickFromCPU();
     }
 
     if (interrupt_enable.interruptFlags & interrupt_flags.interruptFlags & 0x1f) {

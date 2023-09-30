@@ -70,7 +70,17 @@ extern u8 WY;
 extern u8 LY;
 extern u8 LYC;
 
+extern u8 vram[0x2000];
+extern u8 oam[0xa0];
+
+extern u8 objectTileColors[8];
+extern bool objectTilePriorities[8];
+extern u8 objectTileColorsPointer;
+extern u8 remainingSpritePixels;
+
 extern u8 frame[144][160];
+
+extern bool requestFrameDraw;
 
 extern u8 readVRAM(u16 address, bool cpu);
 extern void writeVRAM(u16 address, u8 value, bool cpu);

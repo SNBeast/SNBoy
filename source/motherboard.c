@@ -5,13 +5,25 @@
 #include "serial.h"
 #include "timers.h"
 
+#include <SDL2/SDL.h>
+
 #include <string.h>
 
-u8 wram[0x2000] = {0};
-u8 hram[0x7f] = {0};
+u8 wram[0x2000] = {};
+u8 hram[0x7f] = {};
 
-bool wramAccessible = 1;
-bool stopMode = 0;
+u8 const* keys;
+bool actionIgnored;
+bool dpadIgnored;
+
+bool wramAccessible;
+bool stopMode;
+
+void tickFromCPU (void) {
+    tick_timers();
+    serial_tick();
+    lcd_step();
+}
 
 u8 read8 (u16 address, bool cpu) {
     // Cart ROM
@@ -52,8 +64,11 @@ u8 read8 (u16 address, bool cpu) {
     else if (address < 0xff80 || address == 0xffff) {
         switch (address) {
             case 0xff00:
-                // TODO: Joypad
-                return 0xcf;
+                return 0xc0 | (actionIgnored << 5) | (dpadIgnored << 4)
+                            | (!((!actionIgnored && keys[SDL_SCANCODE_RETURN]) || (!dpadIgnored && keys[SDL_SCANCODE_DOWN])) << 3)
+                            | (!((!actionIgnored && keys[SDL_SCANCODE_TAB]) || (!dpadIgnored && keys[SDL_SCANCODE_UP])) << 2)
+                            | (!((!actionIgnored && keys[SDL_SCANCODE_Z]) || (!dpadIgnored && keys[SDL_SCANCODE_LEFT])) << 1)
+                            | !((!actionIgnored && keys[SDL_SCANCODE_X]) || (!dpadIgnored && keys[SDL_SCANCODE_RIGHT]));
             case 0xff01:
                 return sb;
             case 0xff02:
@@ -167,6 +182,9 @@ u8 read8 (u16 address, bool cpu) {
 }
 
 void write8 (u16 address, u8 value, bool cpu) {
+    if (cpu) {
+        tickFromCPU();
+    }
     // Cart ROM
     if (address < 0x8000) {
         writeCart(address, value);
@@ -199,7 +217,8 @@ void write8 (u16 address, u8 value, bool cpu) {
     else if (address < 0xff80 || address == 0xffff) {
         switch (address) {
             case 0xff00:
-                // TODO: Joypad
+                actionIgnored = value & (1 << 5);
+                dpadIgnored = value & (1 << 4);
                 break;
             case 0xff01:
                 sb = value;

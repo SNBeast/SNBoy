@@ -66,6 +66,9 @@ static void cpu_assertions (void) {
 extern struct CPU_State cpu;
 extern union InterruptFlags interrupt_flags;
 extern union InterruptFlags interrupt_enable;
+extern bool haltMode;
+extern bool eiJustHappened;
+extern bool toggleIME;
 
 extern void cpu_step(void);
 

@@ -3,35 +3,37 @@
 
 #include <string.h>
 
-u8 vram[0x2000] = {0};
-u8 oam[0xa0] = {0};
+u8 vram[0x2000] = {};
+u8 oam[0xa0] = {};
 
-union LCDC_Union lcdc_union = {.lcdc = 0x91};
-union STAT_Union stat_union = {.stat = 0x85};
+union LCDC_Union lcdc_union = {};
+union STAT_Union stat_union = {};
 
-union Palette_Union BGP = {.palette = 0xfc};
-union Palette_Union OBP1 = {0};
-union Palette_Union OBP2 = {0};
+union Palette_Union BGP = {};
+union Palette_Union OBP1 = {};
+union Palette_Union OBP2 = {};
 
-u8 SCX = 0;
-u8 SCY = 0;
-u8 WX = 0;
-u8 WY = 0;
-u8 LY = 0;
-u8 LYC = 0;
+u8 SCX;
+u8 SCY;
+u8 WX;
+u8 WY;
+u8 LY;
+u8 LYC;
 
-u8 line_objects[10] = {0};
+u8 objectTileColors[8] = {};
+bool objectTilePriorities[8] = {};
+u8 objectTileColorsPointer;
+u8 remainingSpritePixels;
+
+u8 bgTileColors[160] = {};
+u8 windowTileColors[168] = {};
+u8 frame[144][160] = {};
+
+u8 line_objects[10] = {};
 u8 line_object_counter = 0;
 u8 line_timer = 0;
 
-u8 bgTileColors[160] = {0};
-u8 windowTileColors[168] = {0};
-u8 objectTileColors[8] = {4, 4, 4, 4, 4, 4, 4, 4};
-bool objectTilePriorities[8] = {0};
-u8 objectTileColorsPointer = 0;
-u8 remainingSpritePixels = 0;
-
-u8 frame[144][160] = {0};
+bool requestFrameDraw;
 
 u8 readVRAM (u16 address, bool cpu) {
     if (!cpu || stat_union.stat != 3) {
@@ -195,7 +197,7 @@ void lcd_step (void) {
                     for (int i = 0; i < 4; i++) {
                         for (int j = 0; j < line_object_counter; j++) {
                             struct OAM_Entry sprite = ((struct OAM_Entry*)oam)[line_objects[j]];
-                            if (sprite.xPosition == (line_timer - 20) * 4 + i) {
+                            if (sprite.xPosition == (line_timer - 20) * 4 + i + 8) {
                                 fetch_sprite_pixels(sprite);
                             }
                         }
@@ -286,6 +288,8 @@ void lcd_step (void) {
                     interrupt_flags.stat = 1;
                 }
                 interrupt_flags.vblank = 1;
+
+                requestFrameDraw = 1;
             }
         }
     }

@@ -1,11 +1,11 @@
 #include "cpu.h"
 #include "serial.h"
 
-union SC_Union sc_union = {.sc = 0x7e};
-u8 sb = 0;
+union SC_Union sc_union = {};
+u8 sb;
 
-u8 serial_tick_counter = 0;
-u8 serial_bit_counter = 0;
+u8 serial_tick_counter;
+u8 serial_bit_counter;
 
 // actual networking will not be implemented at this time, but we need to pretend to handle internally clocked transfers so the interrupt fires
 void serial_tick (void) {

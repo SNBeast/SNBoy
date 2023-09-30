@@ -2,13 +2,13 @@
 #include "motherboard.h"
 #include "cpu.h"
 
-u8 DIV = 0xab;
-u8 TIMA = 0x00;
-u8 TMA = 0x00;
-union TAC_Union tac_union = {.tac = 0xf8};
+u8 DIV;
+u8 TIMA;
+u8 TMA;
+union TAC_Union tac_union = {};
 
-u16 div_counter = 0;
-u16 tima_counter = 0;
+u16 div_counter;
+u16 tima_counter;
 
 void tick_timers (void) {
     if (!stopMode) {

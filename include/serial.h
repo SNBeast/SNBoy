@@ -16,6 +16,7 @@ extern union SC_Union sc_union;
 extern u8 sb;
 
 extern u8 serial_bit_counter;
+extern u8 serial_tick_counter;
 
 extern void serial_tick(void);
 
