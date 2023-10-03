@@ -1,3 +1,4 @@
+#include "apu.h"
 #include "cart.h"
 #include "cpu.h"
 #include "lcd.h"
@@ -12,6 +13,7 @@
 
 bool romLoaded = 0;
 u8 previousButtons = 0xf;
+bool firstFrame = 0;
 
 FILE* savFile = NULL;
 
@@ -84,6 +86,45 @@ void reset (void) {
     mbcBool = 0;
     mbcVar1 = 0;
     mbcVar2 = 0;
+
+    nr10_union.nr10 = 0x80;
+    nr11_union.nr11 = 0xbf;
+    nr12_union.nr12 = 0xf3;
+    nr13 = 0xff;
+    nr14_union.nr14 = 0xbf;
+    nr21_union.nr11 = 0x3f;
+    nr22_union.nr12 = 0x00;
+    nr23 = 0xff;
+    nr24_union.nr14 = 0xbf;
+    nr30_union.nr30 = 0x7f;
+    nr31 = 0xff;
+    nr32_union.nr32 = 0x9f;
+    nr33 = 0xff;
+    nr34_union.nr14 = 0xbf;
+    nr41_union.nr41 = 0xff;
+    nr42_union.nr12 = 0x00;
+    nr43_union.nr43 = 0x00;
+    nr44_union.nr44 = 0xbf;
+    nr50_union.nr50 = 0x77;
+    nr51_union.nr51 = 0xf3;
+    nr52_union.nr52 = 0xf1;
+
+    audioTickCounter = 0;
+    prev_div = 0xab;
+    channelOneProgress = 0;
+    channelTwoProgress = 0;
+    channelThreeProgress = 0;
+    channelFourProgress = 0;
+    channelOnePeriodProgress = ((nr14_union.periodHigh) << 8) | nr13;
+    channelTwoPeriodProgress = ((nr24_union.periodHigh) << 8) | nr23;
+    channelThreePeriodProgress = ((nr34_union.periodHigh) << 8) | nr33;
+    channelFourPeriodProgress = 0;
+    channelOneEnvelopeProgress = 0;
+    channelTwoEnvelopeProgress = 0;
+    channelFourEnvelopeProgress = 0;
+    channelOneSweepProgress = 0;
+
+    apu_div_tick_counter = 0;
 }
 
 bool closeSave (void) {
@@ -250,7 +291,16 @@ bool eventHandle (void) {
 }
 
 int main (int argc, char** argv) {
-    SDL_Init(SDL_INIT_VIDEO);
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
+
+    SDL_AudioSpec requestedAudioSpec, realAudioSpec;
+    memset(&requestedAudioSpec, 0, sizeof(SDL_AudioSpec));
+    requestedAudioSpec.freq = 0x10000;
+    requestedAudioSpec.format = AUDIO_S16;
+    requestedAudioSpec.channels = 2;
+    requestedAudioSpec.samples = 4096;
+    SDL_AudioDeviceID audioDevice = SDL_OpenAudioDevice(NULL, 0, &requestedAudioSpec, &realAudioSpec, SDL_AUDIO_ALLOW_SAMPLES_CHANGE);
+
     SDL_Window* window = SDL_CreateWindow("SNBoy", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 480, 432, 0);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);
     SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 160, 144);
@@ -288,8 +338,19 @@ int main (int argc, char** argv) {
             }
 
             cpu_step();
+
+            if (requestingSamplePlay) {
+                if (lcdc_union.lcdEnable) {
+                    SDL_QueueAudio(audioDevice, sample, sizeof(sample));
+                }
+                requestingSamplePlay = 0;
+            }
         }
         requestFrameDraw = 0;
+        if (!firstFrame) {
+            firstFrame = 1;
+            SDL_PauseAudioDevice(audioDevice, 0);
+        }
         void* pixels;
         int pitch;
         SDL_LockTexture(texture, NULL, &pixels, &pitch);
@@ -304,9 +365,6 @@ int main (int argc, char** argv) {
         SDL_RenderPresent(renderer);
         if (eventHandle()) {
             return 0;
-        }
-        if (keys[SDL_SCANCODE_RSHIFT]) {
-            SDL_Delay(500);
         }
     }
 

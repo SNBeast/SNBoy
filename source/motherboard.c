@@ -1,4 +1,5 @@
 #include "motherboard.h"
+#include "apu.h"
 #include "cart.h"
 #include "cpu.h"
 #include "lcd.h"
@@ -23,9 +24,13 @@ void tickFromCPU (void) {
     tick_timers();
     serial_tick();
     lcd_step();
+    apu_tick();
 }
 
 u8 read8 (u16 address, bool cpu) {
+    if (cpu) {
+        tickFromCPU();
+    }
     // Cart ROM
     if (address < 0x8000) {
         return readCart(address);
@@ -84,68 +89,64 @@ u8 read8 (u16 address, bool cpu) {
             case 0xff0f:
                 return interrupt_flags.interruptFlags;
             case 0xff10:
-                // TODO: Sound
-                return 0x80;
+                return nr10_union.nr10;
             case 0xff11:
-                // TODO: Sound
-                return 0xbf;
+                return nr11_union.nr11 | 0x3f;
             case 0xff12:
-                // TODO: Sound
-                return 0xf3;
+                return nr12_union.nr12;
             case 0xff13:
-                // TODO: Sound
                 return 0xff;
             case 0xff14:
-                // TODO: Sound
-                return 0xbf;
+                return nr14_union.nr14 | 0x87;
             case 0xff16:
-                // TODO: Sound
-                return 0x3f;
+                return nr21_union.nr11 | 0x3f;
             case 0xff17:
-                // TODO: Sound
-                return 0x00;
+                return nr22_union.nr12;
             case 0xff18:
-                // TODO: Sound
                 return 0xff;
             case 0xff19:
-                // TODO: Sound
-                return 0xbf;
+                return nr24_union.nr14 | 0x87;
             case 0xff1a:
-                // TODO: Sound
-                return 0x7f;
+                return nr30_union.nr30;
             case 0xff1b:
-                // TODO: Sound
                 return 0xff;
             case 0xff1c:
-                // TODO: Sound
-                return 0x9f;
+                return nr32_union.nr32;
             case 0xff1d:
-                // TODO: Sound
                 return 0xff;
             case 0xff1e:
-                // TODO: Sound
-                return 0xbf;
+                return nr34_union.nr14 | 0x87;
             case 0xff20:
-                // TODO: Sound
                 return 0xff;
             case 0xff21:
-                // TODO: Sound
-                return 0x00;
+                return nr42_union.nr12;
             case 0xff22:
-                // TODO: Sound
-                return 0x00;
+                return nr43_union.nr43;
             case 0xff23:
-                // TODO: Sound
-                return 0xbf;
+                return nr44_union.nr44 | 0x80;
             case 0xff24:
-                // TODO: Sound
-                return 0x77;
+                return nr50_union.nr50;
             case 0xff25:
-                // TODO: Sound
-                return 0xf3;
+                return nr51_union.nr51;
             case 0xff26:
-                // TODO: Sound
-                return 0xf1;
+                return nr52_union.nr52;
+            case 0xff30:
+            case 0xff31:
+            case 0xff32:
+            case 0xff33:
+            case 0xff34:
+            case 0xff35:
+            case 0xff36:
+            case 0xff37:
+            case 0xff38:
+            case 0xff39:
+            case 0xff3a:
+            case 0xff3b:
+            case 0xff3c:
+            case 0xff3d:
+            case 0xff3e:
+            case 0xff3f:
+                return waveRAM[address - 0xff30];
             case 0xff40:
                 return lcdc_union.lcdc;
             case 0xff41:
@@ -246,67 +247,88 @@ void write8 (u16 address, u8 value, bool cpu) {
                 interrupt_flags.interruptFlags = value;
                 break;
             case 0xff10:
-                // TODO: Sound
+                nr10_union.nr10 = value | 0x80;
                 break;
             case 0xff11:
-                // TODO: Sound
+                nr11_union.nr11 = value;
                 break;
             case 0xff12:
-                // TODO: Sound
+                nr12_union.nr12 = value;
+                nr52_union.channelOne = nr12_union.nr12 & 0xf8;
                 break;
             case 0xff13:
-                // TODO: Sound
+                nr13 = value;
                 break;
             case 0xff14:
-                // TODO: Sound
+                nr14_union.nr14 = value | 0x38;
                 break;
             case 0xff16:
-                // TODO: Sound
+                nr21_union.nr11 = value;
                 break;
             case 0xff17:
-                // TODO: Sound
+                nr22_union.nr12 = value;
+                channelTwoDAC = nr22_union.nr12 & 0xf8;
                 break;
             case 0xff18:
-                // TODO: Sound
+                nr23 = value;
                 break;
             case 0xff19:
-                // TODO: Sound
+                nr24_union.nr14 = value | 0x38;
                 break;
             case 0xff1a:
-                // TODO: Sound
+                nr30_union.dac = value & 0x80;
                 break;
             case 0xff1b:
-                // TODO: Sound
+                nr31 = value;
                 break;
             case 0xff1c:
-                // TODO: Sound
+                nr32_union.nr32 = value | 0x9f;
                 break;
             case 0xff1d:
-                // TODO: Sound
+                nr33 = value;
                 break;
             case 0xff1e:
-                // TODO: Sound
+                nr34_union.nr14 = value | 0x38;
                 break;
             case 0xff20:
-                // TODO: Sound
+                nr41_union.nr41 = value | 0xc0;
                 break;
             case 0xff21:
-                // TODO: Sound
+                nr42_union.nr12 = value;
+                channelFourDAC = nr42_union.nr12 & 0xf8;
                 break;
             case 0xff22:
-                // TODO: Sound
+                nr43_union.nr43 = value;
                 break;
             case 0xff23:
-                // TODO: Sound
+                nr44_union.nr44 = value | 0x3f;
                 break;
             case 0xff24:
-                // TODO: Sound
+                nr50_union.nr50 = value;
                 break;
             case 0xff25:
-                // TODO: Sound
+                nr51_union.nr51 = value;
                 break;
             case 0xff26:
-                // TODO: Sound
+                nr52_union.apuEnable = value & 0x80;
+                break;
+            case 0xff30:
+            case 0xff31:
+            case 0xff32:
+            case 0xff33:
+            case 0xff34:
+            case 0xff35:
+            case 0xff36:
+            case 0xff37:
+            case 0xff38:
+            case 0xff39:
+            case 0xff3a:
+            case 0xff3b:
+            case 0xff3c:
+            case 0xff3d:
+            case 0xff3e:
+            case 0xff3f:
+                waveRAM[address - 0xff30] = value;
                 break;
             case 0xff40:
                 lcdc_union.lcdc = value;

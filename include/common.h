@@ -3,14 +3,14 @@
 
 // for simplicity, only allow little-endian
 #ifndef _WIN32 // Windows is always little-endian and doesn't necessarily have endian.h
-#ifdef __APPLE__
-#include <machine/endian.h>
-#else
-#include <endian.h>
-#endif // __APPLE__
-#if __BYTE_ORDER != __LITTLE_ENDIAN
-#error "Target is not little-endian."
-#endif // __BYTE_ORDER != __LITTLE_ENDIAN
+    #ifdef __APPLE__
+        #include <machine/endian.h>
+    #else
+        #include <endian.h>
+    #endif // __APPLE__
+    #if __BYTE_ORDER != __LITTLE_ENDIAN
+        #error "Target is not little-endian."
+    #endif // __BYTE_ORDER != __LITTLE_ENDIAN
 #endif // _WIN32
 
 #include <stdbool.h>

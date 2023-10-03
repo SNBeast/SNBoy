@@ -20,4 +20,9 @@ extern u8 serial_tick_counter;
 
 extern void serial_tick(void);
 
+static void serial_assertions (void) __attribute__ ((unused));
+static void serial_assertions (void) {
+    static_assert(sizeof(union SC_Union) == sizeof(u8));
+}
+
 #endif // SERIAL_H
