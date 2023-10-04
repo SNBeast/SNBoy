@@ -247,69 +247,118 @@ void write8 (u16 address, u8 value, bool cpu) {
                 interrupt_flags.interruptFlags = value;
                 break;
             case 0xff10:
-                nr10_union.nr10 = value | 0x80;
+                if (nr52_union.apuEnable) {
+                    nr10_union.nr10 = value | 0x80;
+                }
                 break;
             case 0xff11:
-                nr11_union.nr11 = value;
+                if (nr52_union.apuEnable) {
+                    nr11_union.nr11 = value;
+                }
                 break;
             case 0xff12:
-                nr12_union.nr12 = value;
-                nr52_union.channelOne = nr12_union.nr12 & 0xf8;
+                if (nr52_union.apuEnable) {
+                    nr12_union.nr12 = value;
+                    channelOneDAC = nr12_union.nr12 & 0xf8;
+                }
                 break;
             case 0xff13:
-                nr13 = value;
+                if (nr52_union.apuEnable) {
+                    nr13 = value;
+                }
                 break;
             case 0xff14:
-                nr14_union.nr14 = value | 0x38;
+                if (nr52_union.apuEnable) {
+                    nr14_union.nr14 = value | 0x38;
+                }
                 break;
             case 0xff16:
-                nr21_union.nr11 = value;
+                if (nr52_union.apuEnable) {
+                    nr21_union.nr11 = value;
+                }
                 break;
             case 0xff17:
-                nr22_union.nr12 = value;
-                channelTwoDAC = nr22_union.nr12 & 0xf8;
+                if (nr52_union.apuEnable) {
+                    nr22_union.nr12 = value;
+                    channelTwoDAC = nr22_union.nr12 & 0xf8;
+                }
                 break;
             case 0xff18:
-                nr23 = value;
+                if (nr52_union.apuEnable) {
+                    nr23 = value;
+                }
                 break;
             case 0xff19:
-                nr24_union.nr14 = value | 0x38;
+                if (nr52_union.apuEnable) {
+                    nr24_union.nr14 = value | 0x38;
+                }
                 break;
             case 0xff1a:
-                nr30_union.dac = value & 0x80;
+                if (nr52_union.apuEnable) {
+                    nr30_union.dac = value & 0x80;
+                }
                 break;
             case 0xff1b:
-                nr31 = value;
+                if (nr52_union.apuEnable) {
+                    nr31 = value;
+                }
                 break;
             case 0xff1c:
-                nr32_union.nr32 = value | 0x9f;
+                if (nr52_union.apuEnable) {
+                    nr32_union.nr32 = value | 0x9f;
+                }
                 break;
             case 0xff1d:
-                nr33 = value;
+                if (nr52_union.apuEnable) {
+                    nr33 = value;
+                }
                 break;
             case 0xff1e:
-                nr34_union.nr14 = value | 0x38;
+                if (nr52_union.apuEnable) {
+                    nr34_union.nr14 = value | 0x38;
+                }
                 break;
             case 0xff20:
                 nr41_union.nr41 = value | 0xc0;
                 break;
             case 0xff21:
-                nr42_union.nr12 = value;
-                channelFourDAC = nr42_union.nr12 & 0xf8;
+                if (nr52_union.apuEnable) {
+                    nr42_union.nr12 = value;
+                    channelFourDAC = nr42_union.nr12 & 0xf8;
+                }
                 break;
             case 0xff22:
-                nr43_union.nr43 = value;
+                if (nr52_union.apuEnable) {
+                    nr43_union.nr43 = value;
+                }
                 break;
             case 0xff23:
-                nr44_union.nr44 = value | 0x3f;
+                if (nr52_union.apuEnable) {
+                    nr44_union.nr44 = value | 0x3f;
+                }
                 break;
             case 0xff24:
-                nr50_union.nr50 = value;
+                if (nr52_union.apuEnable) {
+                    nr50_union.nr50 = value;
+                }
                 break;
             case 0xff25:
-                nr51_union.nr51 = value;
+                if (nr52_union.apuEnable) {
+                    nr51_union.nr51 = value;
+                }
                 break;
             case 0xff26:
+                if (nr52_union.apuEnable && !(value & 0x80)) {
+                    for (int i = 0xff10; i <= 0xff25; i++) {
+                        if (i != 0xff20) {
+                            write8(i, 0, 0);
+                        }
+                    }
+                    nr52_union.channelOne = 0;
+                    nr52_union.channelTwo = 0;
+                    nr52_union.channelThree = 0;
+                    nr52_union.channelFour = 0;
+                }
                 nr52_union.apuEnable = value & 0x80;
                 break;
             case 0xff30:

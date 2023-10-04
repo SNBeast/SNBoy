@@ -62,6 +62,18 @@ u8 apu_div_tick_counter;
 
 void apu_tick (void) {
     audioTickCounter++;
+    if (!channelOneDAC) {
+        nr52_union.channelOne = 0;
+    }
+    if (!channelTwoDAC) {
+        nr52_union.channelTwo = 0;
+    }
+    if (!nr30_union.dac) {
+        nr52_union.channelThree = 0;
+    }
+    if (!channelFourDAC) {
+        nr52_union.channelFour = 0;
+    }
     if (nr52_union.apuEnable) {
         if (nr14_union.channelRestart && channelOneDAC) {
             nr14_union.channelRestart = 0;
@@ -127,25 +139,25 @@ void apu_tick (void) {
         if ((prev_div & 0x10) && !(DIV & 0x10)) {
             apu_div_tick_counter++;
             if (!(apu_div_tick_counter & 1)) {
-                if (nr14_union.lengthEnable && nr52_union.channelOne) {
+                if (nr14_union.lengthEnable) {
                     nr11_union.lengthInit++;
                     if (!nr11_union.lengthInit) {
                         nr52_union.channelOne = 0;
                     }
                 }
-                if (nr24_union.lengthEnable && nr52_union.channelTwo) {
+                if (nr24_union.lengthEnable) {
                     nr21_union.lengthInit++;
                     if (!nr21_union.lengthInit) {
                         nr52_union.channelTwo = 0;
                     }
                 }
-                if (nr34_union.lengthEnable && nr52_union.channelThree) {
+                if (nr34_union.lengthEnable) {
                     nr31++;
                     if (!nr31) {
                         nr52_union.channelThree = 0;
                     }
                 }
-                if (nr44_union.lengthEnable && nr52_union.channelFour) {
+                if (nr44_union.lengthEnable) {
                     nr41_union.length++;
                     if (!nr41_union.length) {
                         nr52_union.channelFour = 0;

@@ -87,9 +87,27 @@ void reset (void) {
     mbcVar1 = 0;
     mbcVar2 = 0;
 
-    for (int i = 0xff10; i <= 0xff26; i++) {
-        write8(i, 0, 0);
-    }
+    nr10_union.nr10 = 0x80;
+    nr11_union.nr11 = 0xbf;
+    nr12_union.nr12 = 0xf3;
+    nr13 = 0xff;
+    nr14_union.nr14 = 0xbf;
+    nr21_union.nr11 = 0x3f;
+    nr22_union.nr12 = 0x00;
+    nr23 = 0xff;
+    nr24_union.nr14 = 0xbf;
+    nr30_union.nr30 = 0x7f;
+    nr31 = 0xff;
+    nr32_union.nr32 = 0x9f;
+    nr33 = 0xff;
+    nr34_union.nr14 = 0xbf;
+    nr41_union.nr41 = 0xff;
+    nr42_union.nr12 = 0x00;
+    nr43_union.nr43 = 0x00;
+    nr44_union.nr44 = 0xbf;
+    nr50_union.nr50 = 0x77;
+    nr51_union.nr51 = 0xf3;
+    nr52_union.nr52 = 0xf1;
 
     audioTickCounter = 0;
     prev_div = 0xab;
@@ -105,6 +123,9 @@ void reset (void) {
     channelTwoEnvelopeProgress = 0;
     channelFourEnvelopeProgress = 0;
     channelOneSweepProgress = 0;
+    channelOneDAC = 0;
+    channelTwoDAC = 0;
+    channelFourDAC = 0;
 
     apu_div_tick_counter = 0;
 }

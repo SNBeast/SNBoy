@@ -670,6 +670,7 @@ void cpu_step (void) {
     if (interrupt_enable.interruptFlags & interrupt_flags.interruptFlags & 0x1f) {
         if (cpu.ime) {
             cpu.ime = 0;
+            tickFromCPU();
             if (interrupt_enable.vblank && interrupt_flags.vblank) {
                 interrupt_flags.vblank = 0;
                 rst(0x40);
@@ -690,6 +691,7 @@ void cpu_step (void) {
                 interrupt_flags.joypad = 0;
                 rst(0x60);
             }
+            tickFromCPU();
         }
         haltMode = 0;
     }

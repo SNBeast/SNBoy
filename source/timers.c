@@ -22,25 +22,25 @@ void tick_timers (void) {
             tima_counter++;
             switch (tac_union.input_clock) {
                 case 0:
-                    if (tima_counter == 1024) {
+                    if (tima_counter == 256) {
                         TIMA++;
                         tima_counter = 0;
                     }
                     break;
                 case 1:
-                    if (tima_counter == 16) {
+                    if (tima_counter == 4) {
                         TIMA++;
                         tima_counter = 0;
                     }
                     break;
                 case 2:
-                    if (tima_counter == 64) {
+                    if (tima_counter == 16) {
                         TIMA++;
                         tima_counter = 0;
                     }
                     break;
                 case 3:
-                    if (tima_counter == 256) {
+                    if (tima_counter == 64) {
                         TIMA++;
                         tima_counter = 0;
                     }
