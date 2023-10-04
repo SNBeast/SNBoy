@@ -3,7 +3,7 @@
 
 #include <stdlib.h>
 
-#define PULSE_MAGIC 0x40
+#define PULSE_MAGIC 0x20
 
 union NR10_Union nr10_union = {};
 union NR11_Union nr11_union = {};
@@ -61,8 +61,8 @@ u8 prev_div;
 u8 apu_div_tick_counter;
 
 void apu_tick (void) {
+    audioTickCounter++;
     if (nr52_union.apuEnable) {
-        audioTickCounter++;
         if (nr14_union.channelRestart && channelOneDAC) {
             nr14_union.channelRestart = 0;
             nr52_union.channelOne = 1;

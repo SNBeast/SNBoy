@@ -17,7 +17,7 @@ bool firstFrame = 0;
 
 FILE* savFile = NULL;
 
-// something something Sega v. Accolade, I am not a lawyer and this is not legal advice
+// something something interoperability, I am not a lawyer and this is not legal advice
 const u8 NintendoLogo[] = {
     0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D,
     0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99,
@@ -87,27 +87,9 @@ void reset (void) {
     mbcVar1 = 0;
     mbcVar2 = 0;
 
-    nr10_union.nr10 = 0x80;
-    nr11_union.nr11 = 0xbf;
-    nr12_union.nr12 = 0xf3;
-    nr13 = 0xff;
-    nr14_union.nr14 = 0xbf;
-    nr21_union.nr11 = 0x3f;
-    nr22_union.nr12 = 0x00;
-    nr23 = 0xff;
-    nr24_union.nr14 = 0xbf;
-    nr30_union.nr30 = 0x7f;
-    nr31 = 0xff;
-    nr32_union.nr32 = 0x9f;
-    nr33 = 0xff;
-    nr34_union.nr14 = 0xbf;
-    nr41_union.nr41 = 0xff;
-    nr42_union.nr12 = 0x00;
-    nr43_union.nr43 = 0x00;
-    nr44_union.nr44 = 0xbf;
-    nr50_union.nr50 = 0x77;
-    nr51_union.nr51 = 0xf3;
-    nr52_union.nr52 = 0xf1;
+    for (int i = 0xff10; i <= 0xff26; i++) {
+        write8(i, 0, 0);
+    }
 
     audioTickCounter = 0;
     prev_div = 0xab;
