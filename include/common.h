@@ -14,6 +14,7 @@
 #endif // _WIN32
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 typedef uint8_t u8;
