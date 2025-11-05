@@ -11,9 +11,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// 70224 LCD controller ticks per frame, 4194304 LCD controller ticks per second
+#define FRAME_LENGTH (70224. / 4194304.)
+
 bool romLoaded = 0;
 u8 previousButtons = 0xf;
-bool firstFrame = 0;
 
 FILE* savFile = NULL;
 
@@ -294,7 +296,15 @@ bool eventHandle (void) {
 }
 
 int main (int argc, char** argv) {
-    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
+        perror(SDL_GetError());
+        return 1;
+    }
+
+    double perfFrequency = (double)SDL_GetPerformanceFrequency();
+    bool firstFrame = 1;
+    double frameTimeDrift = 0.;
+    u64 lastTime = 0.;
 
     SDL_AudioSpec requestedAudioSpec, realAudioSpec;
     memset(&requestedAudioSpec, 0, sizeof(SDL_AudioSpec));
@@ -303,16 +313,34 @@ int main (int argc, char** argv) {
     requestedAudioSpec.channels = 2;
     requestedAudioSpec.samples = 4096;
     SDL_AudioDeviceID audioDevice = SDL_OpenAudioDevice(NULL, 0, &requestedAudioSpec, &realAudioSpec, SDL_AUDIO_ALLOW_SAMPLES_CHANGE);
+    if (!audioDevice) {
+        perror(SDL_GetError());
+        return 1;
+    }
 
     SDL_Window* window = SDL_CreateWindow("SNBoy", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 480, 432, 0);
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);
+    if (window == NULL) {
+        perror(SDL_GetError());
+        return 1;
+    }
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, 0);
+    if (renderer == NULL) {
+        perror(SDL_GetError());
+        return 1;
+    }
     SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 160, 144);
+    if (texture == NULL) {
+        perror(SDL_GetError());
+        return 1;
+    }
     keys = SDL_GetKeyboardState(NULL);
 
     if (argc == 2) {
         loadROM(argv[1]);
     }
     else {
+        SDL_RenderClear(renderer);
+        SDL_RenderPresent(renderer);
         while (!romLoaded) {
             SDL_Delay(100);
             if (eventHandle()) {
@@ -321,7 +349,15 @@ int main (int argc, char** argv) {
         }
     }
 
+    lastTime = SDL_GetPerformanceCounter();
+
     while (1) {
+        u64 startTime = SDL_GetPerformanceCounter();
+
+        if (eventHandle()) {
+            return 0;
+        }
+
         while (!requestFrameDraw) {
             u8 currentButtons = read8(0xff00, 0) & 0x0f;
             if (currentButtons ^ previousButtons) {
@@ -350,8 +386,7 @@ int main (int argc, char** argv) {
             }
         }
         requestFrameDraw = 0;
-        if (!firstFrame) {
-            firstFrame = 1;
+        if (firstFrame) {
             SDL_PauseAudioDevice(audioDevice, 0);
         }
         void* pixels;
@@ -366,9 +401,21 @@ int main (int argc, char** argv) {
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, texture, NULL, NULL);
         SDL_RenderPresent(renderer);
-        if (eventHandle()) {
-            return 0;
+
+        u64 endTime = SDL_GetPerformanceCounter();
+        double timeElapsed = (endTime - lastTime) / perfFrequency;
+        lastTime = endTime;
+        double frameTime = (endTime - startTime) / perfFrequency;
+
+        // first will be off because there has not yet been a frame wait
+        if (!firstFrame) {
+            frameTimeDrift += timeElapsed - FRAME_LENGTH;
         }
+        else {
+            firstFrame = 0;
+        }
+
+        SDL_Delay((int)(1000. * (FRAME_LENGTH - frameTimeDrift - frameTime)));
     }
 
     return 0;
