@@ -349,6 +349,8 @@ int main (int argc, char** argv) {
         }
     }
 
+    SDL_PauseAudioDevice(audioDevice, 0);
+
     lastTime = SDL_GetPerformanceCounter();
 
     while (1) {
@@ -386,9 +388,6 @@ int main (int argc, char** argv) {
             }
         }
         requestFrameDraw = 0;
-        if (firstFrame) {
-            SDL_PauseAudioDevice(audioDevice, 0);
-        }
         void* pixels;
         int pitch;
         SDL_LockTexture(texture, NULL, &pixels, &pitch);
